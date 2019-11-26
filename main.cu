@@ -5,9 +5,34 @@
 #include <limits>
 #include <cassert>
 #include <string>
+#include <sstream>
 
+#define CHECK(call)                                                  \
+{                                                                    \
+    const cudaError_t error = call;                                  \
+    std::stringstream ss;                                            \
+    if (error != cudaSuccess)                                        \
+    {                                                                \
+        ss        << "CHECK cudaError_t: "                           \
+                  << __FILE__                                        \
+                  << "("                                             \
+                  << __LINE__                                        \
+                  << ")"                                             \
+                  << ": "                                            \
+                  << "Error"                                         \
+                  << std::endl;                                      \
+        ss        << "code: "                                        \
+                  << error                                           \
+                  << ", "                                            \
+                  << "reason: "                                      \
+                  << cudaGetErrorString(error)                       \
+                  << std::endl;                                      \
+        std::cerr << ss.str();                                       \
+        std::exit(EXIT_FAILURE);                                     \
+    }                                                                \
+}
 
-    __global__
+__global__
 void tmp(long n, long a, long *y)
 {
     long i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -17,6 +42,8 @@ void tmp(long n, long a, long *y)
 
 int main(void)
 {
+    CHECK(cudaGetLastError ());
+
     constexpr long K = 13;
     constexpr long N = 1<<5;
 
@@ -26,8 +53,8 @@ int main(void)
 
     for (long i = 0; i < K; ++i) {
         size_t size_ = h_y[i].size() * sizeof(h_y[i][0]);
-        cudaMalloc(&d_y[i], size_);
-        cudaStreamCreate(&stream[i]);
+        CHECK(cudaMalloc(&d_y[i], size_));
+        CHECK(cudaStreamCreate(&stream[i]));
     }
 
     for (long i = 0; i < K; ++i) {
@@ -36,7 +63,7 @@ int main(void)
 
     for (long i = 0; i < K; ++i) {
         size_t size_ = h_y[i].size() * sizeof(h_y[i][0]);
-        cudaMemcpy(h_y[i].data(), d_y[i], size_, cudaMemcpyDeviceToHost);
+        CHECK(cudaMemcpy(h_y[i].data(), d_y[i], size_, cudaMemcpyDeviceToHost));
     }
 
     for (long j = 0; j < N; ++j) {
@@ -49,4 +76,6 @@ int main(void)
         }
         std::cout << std::endl;
     }
+    CHECK(cudaGetLastError ());
+    return 0;
 }
