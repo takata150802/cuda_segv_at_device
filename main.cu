@@ -28,7 +28,7 @@
                   << cudaGetErrorString(error)                       \
                   << std::endl;                                      \
         std::cerr << ss.str();                                       \
-        std::exit(EXIT_FAILURE);                                     \
+        /*std::exit(EXIT_FAILURE);*/                                 \
     }                                                                \
 }
 
@@ -37,19 +37,20 @@ void tmp(long n, long a, long *y)
 {
     long i = blockIdx.x*blockDim.x + threadIdx.x;
     if (i < n) y[i] = a + i;
-    if (i < n) y[i+n-3] = a + i;
+    if (i == 0) y[256*1024 ] = a + i;
 }
 
 int main(void)
 {
     CHECK(cudaGetLastError ());
 
-    constexpr long K = 13;
+    constexpr long K = 1;
     constexpr long N = 1<<5;
+    constexpr long T = N;
 
+    std::vector<cudaStream_t> stream(K);
     std::vector< std::vector<long> > h_y (K, std::vector<long>(N, -1));
     std::vector<long*> d_y(K);
-    std::vector<cudaStream_t> stream(K);
 
     for (long i = 0; i < K; ++i) {
         size_t size_ = h_y[i].size() * sizeof(h_y[i][0]);
@@ -58,8 +59,9 @@ int main(void)
     }
 
     for (long i = 0; i < K; ++i) {
-        tmp<<<(N+255)/256, 256, 0, stream[i]>>>(N, i, d_y[i]);
+        tmp<<<(N+T-1)/T, T, 0, stream[i]>>>(N, i, d_y[i]);
     }
+    CHECK(cudaDeviceSynchronize());
 
     for (long i = 0; i < K; ++i) {
         size_t size_ = h_y[i].size() * sizeof(h_y[i][0]);
