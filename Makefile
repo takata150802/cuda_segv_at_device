@@ -8,7 +8,10 @@ NVOBJS = /usr/lib/x86_64-linux-gnu/libcudnn.so \
          /usr/local/cuda/lib64/libcudart.so
 NVCC = nvcc
 NAME = main.out
+CUDA_MEMCHECL = cuda-memcheck
 
+run: $(NAME)
+	$(CUDA_MEMCHECL) ./$(NAME)
 $(NAME): $(OBJS)
 	$(NVCC) -o $(NAME) $(OBJS) $(NVOBJS)
 

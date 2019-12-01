@@ -1,0 +1,31 @@
+スクリプトは 2019年12月02日 03時35分57秒
+ に開始しましたbashrc_ryotakata-ubuntu00
+ryotakata@ryotakata-ubuntu00:~/tmp/cuda_segv$ make
+nvcc -I/usr/include -I/usr/local/cuda/include -std=c++11 -O3 -c main.cu
+nvcc -o main.out main.o /usr/lib/x86_64-linux-gnu/libcudnn.so /usr/local/cuda/lib64/libcudart.so
+cuda-memcheck ./main.out
+========= CUDA-MEMCHECK
+========= Invalid __global__ write of size 8
+=========     at 0x00000078 in convolutionFowradDummy(long*)
+=========     by thread (31,0,0) in block (0,0,0)
+=========     Address 0x2afc6e2000f8 is out of bounds
+=========     Saved host backtrace up to driver entry point at kernel launch time
+=========     Host Frame:/usr/lib/x86_64-linux-gnu/libcuda.so.1 (cuLaunchKernel + 0x2fe) [0x28187e]
+=========     Host Frame:/usr/local/cuda/lib64/libcudart.so.10.1 [0x19c27]
+=========     Host Frame:/usr/local/cuda/lib64/libcudart.so.10.1 [0x19cb7]
+=========     Host Frame:/usr/local/cuda/lib64/libcudart.so.10.1 (cudaLaunchKernel + 0x225) [0x51695]
+=========     Host Frame:./main.out [0x19f5]
+=========     Host Frame:./main.out [0x11ac]
+=========     Host Frame:/lib/x86_64-linux-gnu/libc.so.6 (__libc_start_main + 0xf5) [0x21f45]
+=========     Host Frame:./main.out [0x16bf]
+=========
+CHECK cudaError_t: main.cu(71): Error
+code: 719, reason: unspecified launch failure
+CHECK cudaError_t: main.cu(76): Error
+code: 719, reason: unspecified launch failure
+========= ERROR SUMMARY: 1 error
+ryotakata@ryotakata-ubuntu00:~/tmp/cuda_segv$ exit 
+exit
+
+スクリプトは 2019年12月02日 03時36分12秒
+ に終了しました

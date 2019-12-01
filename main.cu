@@ -1,3 +1,6 @@
+/**
+ * cuda-memcheckによるメモリ破壊バグ検出のサンプル
+ **/
 #include <algorithm>
 #include <iostream>
 #include <vector>
@@ -32,52 +35,47 @@
     }                                                                \
 }
 
-__global__
-void tmp(long n, long a, long *y)
+// 本サンプル用のダミー関数. 動作はy[0]...y[N-1]に1を書き込むだけ
+__global__ void convolutionFowradDummy(long *y)
 {
     long i = blockIdx.x*blockDim.x + threadIdx.x;
-    if (i < n) y[i] = a + i;
-    if (i == 0) y[256*1024 ] = a + i;
+    y[i] = 1;
+}
+
+// 本サンプル用のダミー関数. 動作はy[0]...y[N-1]に2を書き込むだけ
+__global__ void poolingFowradDummy(long *y)
+{
+    long i = blockIdx.x*blockDim.x + threadIdx.x;
+    y[i] = 2;
 }
 
 int main(void)
 {
+    // 事前にError をcheckするAPIを1度実行しておく
+    // (Errorが検出されないことが期待)
     CHECK(cudaGetLastError ());
 
-    constexpr long K = 1;
+    // convolutionFowradDummy. poolingFowradDummy用のデバイスメモリを確保する
+    // サイズはどちらもN*8Byte確保することが期待.
+    // ただし、わざとメモリ破壊バグを発生されるため、
+    // convolutionFowradDummyのほうだけ期待より少ないサイズを確保する
     constexpr long N = 1<<5;
-    constexpr long T = N;
+    long *out_conv, *out_pool;
+    size_t size_ = N * sizeof(long);
+    CHECK(cudaMalloc(&out_conv, size_ - 1));
+    CHECK(cudaMalloc(&out_pool, size_));
 
-    std::vector<cudaStream_t> stream(K);
-    std::vector< std::vector<long> > h_y (K, std::vector<long>(N, -1));
-    std::vector<long*> d_y(K);
-
-    for (long i = 0; i < K; ++i) {
-        size_t size_ = h_y[i].size() * sizeof(h_y[i][0]);
-        CHECK(cudaMalloc(&d_y[i], size_));
-        CHECK(cudaStreamCreate(&stream[i]));
-    }
-
-    for (long i = 0; i < K; ++i) {
-        tmp<<<(N+T-1)/T, T, 0, stream[i]>>>(N, i, d_y[i]);
-    }
+    // convolutionFowradDummy,poolingFowradDummyの順で実行する
+    // cuda-memcheckなるツールを使うと,
+    // convolutionFowradDummyでメモリ破壊(Invalid __global__ write of size 8)
+    // していることを検出できる
+    convolutionFowradDummy<<<1, N>>>(out_conv);
+    poolingFowradDummy<<<1, N>>>(out_pool);
     CHECK(cudaDeviceSynchronize());
 
-    for (long i = 0; i < K; ++i) {
-        size_t size_ = h_y[i].size() * sizeof(h_y[i][0]);
-        CHECK(cudaMemcpy(h_y[i].data(), d_y[i], size_, cudaMemcpyDeviceToHost));
-    }
-
-    for (long j = 0; j < N; ++j) {
-        for (long i = 0; i < K; ++i) {
-            if (h_y[i][j] == (i + j)) {
-            } else {
-                std::cout << "NG:";
-            }
-            std::cout << h_y[i][j] << ", ";
-        }
-        std::cout << std::endl;
-    }
+    // Error をcheckするAPIを実行すると
+    // 不明なエラー(code: 719, reason: unspecified launch failur)と表示される
+    // つまり、このAPIだけでも何らかのエラーが起きたことは検出できる
     CHECK(cudaGetLastError ());
     return 0;
 }
